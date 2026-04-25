@@ -9,22 +9,37 @@ STABLE_VOL_THRESHOLD = 0.10
 BREAKOUT_THRESHOLD = 0.10
 VOL_MULTIPLIER = 2.0
 
-FAPI_URL = "https://fapi.binance.com/fapi/v1"
+FAPI_URLS = [
+    "https://fapi.binance.com/fapi/v1",
+    "https://fapi1.binance.com/fapi/v1",
+    "https://fapi2.binance.com/fapi/v1",
+    "https://fapi3.binance.com/fapi/v1",
+]
 
 def fapi_get(endpoint, params=None):
     if params is None:
         params = {}
-    try:
-        r = requests.get(f"{FAPI_URL}/{endpoint}", params=params, timeout=15)
-        return r.json()
-    except Exception as e:
-        print(f"请求失败 {endpoint}: {e}")
-        return None
+    for base in FAPI_URLS:
+        try:
+            r = requests.get(f"{base}/{endpoint}", params=params, timeout=15)
+            data = r.json()
+            if isinstance(data, dict) and "code" in data:
+                print(f"{base} 返回错误: {data}")
+                continue
+            if isinstance(data, (dict, list)):
+                return data
+        except Exception as e:
+            print(f"{base} 请求失败: {e}")
+            continue
+    return None
 
 def get_all_futures_symbols():
     data = fapi_get("exchangeInfo")
-    if not data or "symbols" not in data:
-        print("获取合约列表失败")
+    if not data:
+        print("获取合约列表失败：所有接口无返回")
+        return []
+    if "symbols" not in data:
+        print(f"获取合约列表失败：返回内容异常 -> {str(data)[:200]}")
         return []
     symbols = []
     for s in data["symbols"]:
@@ -148,6 +163,10 @@ def generate_html(history, total_symbols, found_this_round):
     down_count = sum(1 for d in history if any("暴跌" in s["方向"] for s in d["signals"]))
     update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    status_text = f"100% 已完成 | 共扫描 {total_symbols} 个合约" if total_symbols > 0 else "获取合约列表失败，请检查网络"
+    progress_width = "100%" if total_symbols > 0 else "0%"
+    progress_color = "#58a6ff" if total_symbols > 0 else "#f85149"
+
     cards = ""
     for item in reversed(history):
         is_up = any("暴涨" in s["方向"] for s in item["signals"])
@@ -201,7 +220,7 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 .progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 24px;margin:0 auto 24px auto;max-width:600px}}
 .progress-label{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}}
 .progress-bar{{background:#21262d;border-radius:4px;height:8px}}
-.progress-fill{{background:#58a6ff;border-radius:4px;height:8px}}
+.progress-fill{{border-radius:4px;height:8px}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}}
 .card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}}
 .card.up{{border-left:4px solid #3fb950}}
@@ -236,10 +255,10 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 <div class="progress-box">
   <div class="progress-label">
     <span>本轮扫描进度</span>
-    <span>100% 已完成 | 共扫描 {total_symbols} 个合约</span>
+    <span>{status_text}</span>
   </div>
   <div class="progress-bar">
-    <div class="progress-fill" style="width:100%"></div>
+    <div class="progress-fill" style="width:{progress_width};background:{progress_color}"></div>
   </div>
 </div>
 <div class="grid">{cards}</div>
@@ -249,19 +268,23 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 
 def main():
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 获取合约交易对...")
-    symbols = get_all_futures_symbols()
-    if not symbols:
-        print("获取合约交易对失败，退出")
-        return
 
-    total = len(symbols)
-    print(f"开始扫描 {total} 个合约...\n")
+    symbols = get_all_futures_symbols()
 
     try:
         with open("alerts.json", "r", encoding="utf-8") as f:
             history = json.load(f)
     except Exception:
         history = []
+
+    if not symbols:
+        print("获取合约交易对失败，生成失败提示页面")
+        with open("index.html", "w", encoding="utf-8") as f:
+            f.write(generate_html(history, 0, 0))
+        return
+
+    total = len(symbols)
+    print(f"开始扫描 {total} 个合约...\n")
 
     found = 0
     for i, symbol in enumerate(symbols):
