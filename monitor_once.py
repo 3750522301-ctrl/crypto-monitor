@@ -9,16 +9,14 @@ STABLE_VOL_THRESHOLD = 0.10
 BREAKOUT_THRESHOLD = 0.10
 VOL_MULTIPLIER = 2.0
 
-BINANCE_URLS = [
-    "https://api.binance.com/api/v3",
-    "https://api1.binance.com/api/v3",
-    "https://api2.binance.com/api/v3",
+FAPI_URLS = [
+    "https://fapi.binance.com/fapi/v1",
 ]
 
-def binance_get(endpoint, params=None):
+def fapi_get(endpoint, params=None):
     if params is None:
         params = {}
-    for base in BINANCE_URLS:
+    for base in FAPI_URLS:
         try:
             r = requests.get(f"{base}/{endpoint}", params=params, timeout=10)
             data = r.json()
@@ -28,8 +26,8 @@ def binance_get(endpoint, params=None):
             continue
     return None
 
-def get_all_usdt_symbols():
-    data = binance_get("exchangeInfo")
+def get_all_futures_symbols():
+    data = fapi_get("exchangeInfo")
     if not data or "symbols" not in data:
         return []
 
@@ -38,15 +36,16 @@ def get_all_usdt_symbols():
         if (
             s["symbol"].endswith("USDT")
             and s["status"] == "TRADING"
-            and s["quoteAsset"] == "USDT"
+            and s["contractType"] == "PERPETUAL"
         ):
             symbols.append(s["symbol"])
 
-    print(f"共获取到 {len(symbols)} 个USDT交易对")
+    symbols.sort()
+    print(f"共获取到 {len(symbols)} 个USDT永续合约")
     return symbols
 
 def get_daily_klines(symbol, days=30):
-    data = binance_get("klines", {
+    data = fapi_get("klines", {
         "symbol": symbol,
         "interval": "1d",
         "limit": days + 5
@@ -67,7 +66,7 @@ def get_daily_klines(symbol, days=30):
     return df
 
 def get_recent_klines(symbol, interval, limit=5):
-    data = binance_get("klines", {
+    data = fapi_get("klines", {
         "symbol": symbol,
         "interval": interval,
         "limit": limit
@@ -87,7 +86,7 @@ def get_recent_klines(symbol, interval, limit=5):
     return df
 
 def get_ticker(symbol):
-    data = binance_get("ticker/price", {"symbol": symbol})
+    data = fapi_get("ticker/price", {"symbol": symbol})
     if data and "price" in data:
         return float(data["price"])
     return None
@@ -159,7 +158,7 @@ def check_symbol(symbol):
         "detected_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-def generate_html(history):
+def generate_html(history, total_symbols, found_this_round):
     total = len(history)
     up_count = sum(1 for d in history if any("暴涨" in s["方向"] for s in d["signals"]))
     down_count = sum(1 for d in history if any("暴跌" in s["方向"] for s in d["signals"]))
@@ -198,7 +197,7 @@ def generate_html(history):
         </div>"""
 
     if not cards:
-        cards = '<div class="no-data">暂无异动数据，每15分钟自动扫描</div>'
+        cards = '<div class="no-data">暂无异动数据</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="zh">
@@ -206,7 +205,7 @@ def generate_html(history):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta http-equiv="refresh" content="60">
-<title>币安异动监控</title>
+<title>币安合约异动监控</title>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px}}
@@ -216,6 +215,10 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 .stat{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;text-align:center}}
 .stat .num{{font-size:28px;font-weight:bold;color:#58a6ff}}
 .stat .lbl{{font-size:12px;color:#8b949e;margin-top:4px}}
+.progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;margin-bottom:24px;max-width:600px;margin-left:auto;margin-right:auto}}
+.progress-label{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}}
+.progress-bar{{background:#21262d;border-radius:4px;height:8px}}
+.progress-fill{{background:#58a6ff;border-radius:4px;height:8px}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}}
 .card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}}
 .card.up{{border-left:4px solid #3fb950}}
@@ -238,27 +241,39 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 </style>
 </head>
 <body>
-<h1>⚡ 币安异动监控</h1>
-<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动放大2倍以上</p>
+<h1>⚡ 币安合约异动监控</h1>
+<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动放大2倍以上 | U本位永续合约</p>
 <div class="stats">
+  <div class="stat"><div class="num">{total_symbols}</div><div class="lbl">监控合约数</div></div>
+  <div class="stat"><div class="num">{found_this_round}</div><div class="lbl">本轮新增</div></div>
   <div class="stat"><div class="num">{total}</div><div class="lbl">累计异动</div></div>
   <div class="stat"><div class="num" style="color:#3fb950">{up_count}</div><div class="lbl">暴涨信号</div></div>
   <div class="stat"><div class="num" style="color:#f85149">{down_count}</div><div class="lbl">暴跌信号</div></div>
 </div>
+<div class="progress-box">
+  <div class="progress-label">
+    <span>本轮扫描进度</span>
+    <span>100% | {total_symbols}/{total_symbols}</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" style="width:100%"></div>
+  </div>
+</div>
 <div class="grid">{cards}</div>
-<div class="footer">最后更新: {update_time} | 每15分钟自动扫描</div>
+<div class="footer">最后更新: {update_time} | 每15分钟自动扫描 | 数据来源: 币安合约</div>
 </body>
 </html>"""
 
 def main():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始获取所有交易对...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 获取合约交易对...")
 
-    symbols = get_all_usdt_symbols()
+    symbols = get_all_futures_symbols()
     if not symbols:
-        print("获取交易对失败")
+        print("获取合约交易对失败")
         return
 
-    print(f"开始扫描 {len(symbols)} 个币种...")
+    total = len(symbols)
+    print(f"开始扫描 {total} 个合约...")
 
     try:
         with open("alerts.json", "r", encoding="utf-8") as f:
@@ -268,25 +283,28 @@ def main():
 
     found = 0
     for i, symbol in enumerate(symbols):
+        pct = int((i + 1) / total * 100)
+        bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
+        print(f"[{bar}] {pct}% [{i+1}/{total}] {symbol}", end="\r")
+
         try:
             result = check_symbol(symbol)
             if result:
-                print(f"⚡ [{i+1}/{len(symbols)}] {symbol} 异动！{result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
+                print(f"\n⚡ [{i+1}/{total}] {symbol} 异动！{result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
                 history.append(result)
                 found += 1
-            else:
-                print(f"✅ [{i+1}/{len(symbols)}] {symbol} 正常")
         except Exception as e:
-            print(f"❌ [{i+1}/{len(symbols)}] {symbol} 出错: {e}")
+            print(f"\n❌ [{i+1}/{total}] {symbol} 出错: {e}")
+
         time.sleep(0.05)
+
+    print(f"\n完成！本轮发现 {found} 个异动，累计 {len(history)} 条记录")
 
     with open("alerts.json", "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(generate_html(history))
-
-    print(f"完成！发现 {found} 个异动，累计 {len(history)} 条记录")
+        f.write(generate_html(history, total, found))
 
 if __name__ == "__main__":
     main()
