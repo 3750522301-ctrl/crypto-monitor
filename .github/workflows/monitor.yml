@@ -1,4 +1,4 @@
-name: 币安异动监控
+name: 币安合约异动监控
 
 on:
   schedule:
@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: 装依赖
-        run: pip install requests pandas numpy
+        run: pip install requests pandas
 
       - name: 跑脚本
         run: python monitor_once.py
