@@ -5,19 +5,32 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: 拉代码
+        uses: actions/checkout@v4
+
+      - name: 装Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests pandas numpy
-      - run: python monitor_once.py
-      - run: |
+
+      - name: 装依赖
+        run: pip install requests pandas numpy
+
+      - name: 跑脚本
+        run: python monitor_once.py
+
+      - name: 提交生成文件
+        run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add alerts.json index.html || true
-          git diff --staged --quiet || git commit -m "update $(date '+%Y-%m-%d %H:%M')"
-          git push || true
+          git add alerts.json index.html
+          git status
+          git commit -m "update generated files" || echo "no changes"
+          git push
