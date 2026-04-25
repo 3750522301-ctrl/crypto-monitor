@@ -4,16 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta http-equiv="refresh" content="60">
-<title>币安异动监控</title>
+<title>币安合约异动监控</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px}
 h1{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}
 .sub{text-align:center;color:#8b949e;font-size:13px;margin-bottom:20px}
-.stats{display:flex;gap:16px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.stats{display:flex;gap:16px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
 .stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;text-align:center}
 .stat .num{font-size:28px;font-weight:bold;color:#58a6ff}
 .stat .lbl{font-size:12px;color:#8b949e;margin-top:4px}
+.progress-box{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 24px;margin:0 auto 24px auto;max-width:600px}
+.progress-label{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}
+.progress-bar{background:#21262d;border-radius:4px;height:8px}
+.progress-fill{border-radius:4px;height:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
 .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}
 .card.up{border-left:4px solid #3fb950}
@@ -36,14 +40,25 @@ h1{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}
 </style>
 </head>
 <body>
-<h1>⚡ 币安异动监控</h1>
-<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动率暴增 3倍以上</p>
+<h1>⚡ 币安合约异动监控</h1>
+<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动放大2倍以上 | U本位永续合约</p>
 <div class="stats">
+  <div class="stat"><div class="num">0</div><div class="lbl">监控合约数</div></div>
+  <div class="stat"><div class="num">0</div><div class="lbl">本轮新增</div></div>
   <div class="stat"><div class="num">0</div><div class="lbl">累计异动</div></div>
   <div class="stat"><div class="num" style="color:#3fb950">0</div><div class="lbl">暴涨信号</div></div>
   <div class="stat"><div class="num" style="color:#f85149">0</div><div class="lbl">暴跌信号</div></div>
 </div>
-<div class="grid"><div class="no-data">暂无异动数据，每5分钟自动扫描</div></div>
-<div class="footer">最后更新: 2026-04-25 17:00:09 | 每5分钟自动扫描</div>
+<div class="progress-box">
+  <div class="progress-label">
+    <span>本轮扫描进度</span>
+    <span>获取合约列表失败，请检查网络</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" style="width:0%;background:#f85149"></div>
+  </div>
+</div>
+<div class="grid"><div class="no-data">暂无异动数据</div></div>
+<div class="footer">最后更新: 2026-04-25 17:45:50 | 每15分钟自动扫描 | 数据来源: 币安U本位永续合约</div>
 </body>
 </html>
