@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="refresh" content="60">
+<title>币安异动监控</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px}
+h1{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}
+.sub{text-align:center;color:#8b949e;font-size:13px;margin-bottom:20px}
+.stats{display:flex;gap:16px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}
+.stat{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;text-align:center}
+.stat .num{font-size:28px;font-weight:bold;color:#58a6ff}
+.stat .lbl{font-size:12px;color:#8b949e;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}
+.card.up{border-left:4px solid #3fb950}
+.card.down{border-left:4px solid #f85149}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.symbol{font-size:18px;font-weight:bold;color:#58a6ff}
+.time{font-size:11px;color:#8b949e}
+.price{font-size:13px;color:#8b949e;margin-bottom:8px}
+.stable{font-size:12px;color:#8b949e;margin-bottom:10px;padding:6px 10px;background:#0d1117;border-radius:6px}
+.signal{background:#0d1117;border-radius:8px;padding:10px;margin-bottom:8px}
+.sig-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.period{font-size:12px;font-weight:bold;background:#21262d;padding:2px 8px;border-radius:10px}
+.up-text{color:#3fb950;font-weight:bold}
+.down-text{color:#f85149;font-weight:bold}
+.sig-row{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-top:3px}
+.sig-row span:last-child{color:#e6edf3}
+.mul{color:#e3b341;font-weight:bold}
+.no-data{text-align:center;color:#8b949e;padding:60px;grid-column:1/-1}
+.footer{text-align:center;color:#8b949e;font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<h1>⚡ 币安异动监控</h1>
+<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动率暴增 3倍以上</p>
+<div class="stats">
+  <div class="stat"><div class="num">0</div><div class="lbl">累计异动</div></div>
+  <div class="stat"><div class="num" style="color:#3fb950">0</div><div class="lbl">暴涨信号</div></div>
+  <div class="stat"><div class="num" style="color:#f85149">0</div><div class="lbl">暴跌信号</div></div>
+</div>
+<div class="grid"><div class="no-data">暂无异动数据，每5分钟自动扫描</div></div>
+<div class="footer">最后更新: 2026-04-25 17:00:09 | 每5分钟自动扫描</div>
+</body>
+</html>
