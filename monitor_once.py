@@ -9,26 +9,22 @@ STABLE_VOL_THRESHOLD = 0.10
 BREAKOUT_THRESHOLD = 0.10
 VOL_MULTIPLIER = 2.0
 
-FAPI_URLS = [
-    "https://fapi.binance.com/fapi/v1",
-]
+FAPI_URL = "https://fapi.binance.com/fapi/v1"
 
 def fapi_get(endpoint, params=None):
     if params is None:
         params = {}
-    for base in FAPI_URLS:
-        try:
-            r = requests.get(f"{base}/{endpoint}", params=params, timeout=10)
-            data = r.json()
-            if isinstance(data, (list, dict)):
-                return data
-        except Exception:
-            continue
-    return None
+    try:
+        r = requests.get(f"{FAPI_URL}/{endpoint}", params=params, timeout=15)
+        return r.json()
+    except Exception as e:
+        print(f"请求失败 {endpoint}: {e}")
+        return None
 
 def get_all_futures_symbols():
     data = fapi_get("exchangeInfo")
     if not data or "symbols" not in data:
+        print("获取合约列表失败")
         return []
     symbols = []
     for s in data["symbols"]:
@@ -48,7 +44,7 @@ def get_daily_klines(symbol, days=30):
         "interval": "1d",
         "limit": days + 5
     })
-    if not data:
+    if not data or not isinstance(data, list):
         return None
     df = pd.DataFrame(data, columns=[
         "open_time", "open", "high", "low", "close", "volume",
@@ -68,7 +64,7 @@ def get_recent_klines(symbol, interval, limit=5):
         "interval": interval,
         "limit": limit
     })
-    if not data:
+    if not data or not isinstance(data, list):
         return None
     df = pd.DataFrame(data, columns=[
         "open_time", "open", "high", "low", "close", "volume",
@@ -205,7 +201,7 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 .progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 24px;margin:0 auto 24px auto;max-width:600px}}
 .progress-label{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}}
 .progress-bar{{background:#21262d;border-radius:4px;height:8px}}
-.progress-fill{{background:#58a6ff;border-radius:4px;height:8px;transition:width 0.3s}}
+.progress-fill{{background:#58a6ff;border-radius:4px;height:8px}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}}
 .card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}}
 .card.up{{border-left:4px solid #3fb950}}
@@ -253,10 +249,9 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 
 def main():
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 获取合约交易对...")
-
     symbols = get_all_futures_symbols()
     if not symbols:
-        print("获取合约交易对失败")
+        print("获取合约交易对失败，退出")
         return
 
     total = len(symbols)
@@ -274,7 +269,6 @@ def main():
         filled = pct // 5
         bar = "#" * filled + "-" * (20 - filled)
         print(f"\r[{bar}] {pct:3d}% [{i+1}/{total}] {symbol:<20}", end="", flush=True)
-
         try:
             result = check_symbol(symbol)
             if result:
@@ -283,14 +277,12 @@ def main():
                 found += 1
         except Exception as e:
             print(f"\n❌ {symbol} 出错: {e}")
-
         time.sleep(0.05)
 
     print(f"\n\n完成！本轮发现 {found} 个异动，累计 {len(history)} 条记录")
 
     with open("alerts.json", "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
-
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(generate_html(history, total, found))
 
