@@ -2,7 +2,7 @@ name: 币安异动监控
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,7 @@ permissions:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 14
     steps:
       - name: 拉代码
         uses: actions/checkout@v4
@@ -31,6 +32,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add alerts.json index.html
-          git status
-          git commit -m "update generated files" || echo "no changes"
+          git commit -m "update $(date '+%Y-%m-%d %H:%M')" || echo "no changes"
           git push
