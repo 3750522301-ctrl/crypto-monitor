@@ -30,7 +30,6 @@ def get_all_futures_symbols():
     data = fapi_get("exchangeInfo")
     if not data or "symbols" not in data:
         return []
-
     symbols = []
     for s in data["symbols"]:
         if (
@@ -39,7 +38,6 @@ def get_all_futures_symbols():
             and s["contractType"] == "PERPETUAL"
         ):
             symbols.append(s["symbol"])
-
     symbols.sort()
     print(f"共获取到 {len(symbols)} 个USDT永续合约")
     return symbols
@@ -52,7 +50,6 @@ def get_daily_klines(symbol, days=30):
     })
     if not data:
         return None
-
     df = pd.DataFrame(data, columns=[
         "open_time", "open", "high", "low", "close", "volume",
         "close_time", "quote_volume", "trades",
@@ -73,7 +70,6 @@ def get_recent_klines(symbol, interval, limit=5):
     })
     if not data:
         return None
-
     df = pd.DataFrame(data, columns=[
         "open_time", "open", "high", "low", "close", "volume",
         "close_time", "quote_volume", "trades",
@@ -95,17 +91,14 @@ def check_stable_period(df_daily):
     past = df_daily.iloc[:-1].copy()
     if len(past) < STABLE_DAYS:
         return False, 0, 0
-
     stable_count = 0
     for i in range(len(past) - 1, -1, -1):
         if past.iloc[i]["daily_vol"] < STABLE_VOL_THRESHOLD * 100:
             stable_count += 1
         else:
             break
-
     if stable_count < STABLE_DAYS:
         return False, stable_count, 0
-
     avg_vol = past.iloc[-stable_count:]["daily_vol"].mean()
     return True, stable_count, avg_vol
 
@@ -115,11 +108,9 @@ def check_breakout(symbol, stable_avg_vol):
         df = get_recent_klines(symbol, interval, limit)
         if df is None or len(df) < 2:
             continue
-
         last = df.iloc[-2]
         change_pct = (last["close"] - last["open"]) / last["open"] * 100
         candle_vol = (last["high"] - last["low"]) / last["open"] * 100
-
         if (
             abs(change_pct) >= BREAKOUT_THRESHOLD * 100
             and stable_avg_vol > 0
@@ -140,15 +131,12 @@ def check_symbol(symbol):
     df_daily = get_daily_klines(symbol)
     if df_daily is None:
         return None
-
     is_stable, stable_days, avg_vol = check_stable_period(df_daily)
     if not is_stable:
         return None
-
     signals = check_breakout(symbol, avg_vol)
     if not signals:
         return None
-
     return {
         "symbol": symbol,
         "current_price": get_ticker(symbol),
@@ -169,7 +157,6 @@ def generate_html(history, total_symbols, found_this_round):
         is_up = any("暴涨" in s["方向"] for s in item["signals"])
         card_cls = "up" if is_up else "down"
         sigs = ""
-
         for s in item["signals"]:
             dc = "up-text" if "暴涨" in s["方向"] else "down-text"
             chg = f"+{s['涨跌幅']}%" if s["涨跌幅"] > 0 else f"{s['涨跌幅']}%"
@@ -211,14 +198,14 @@ def generate_html(history, total_symbols, found_this_round):
 body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px}}
 h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 .sub{{text-align:center;color:#8b949e;font-size:13px;margin-bottom:20px}}
-.stats{{display:flex;gap:16px;justify-content:center;margin-bottom:24px;flex-wrap:wrap}}
+.stats{{display:flex;gap:16px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}}
 .stat{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;text-align:center}}
 .stat .num{{font-size:28px;font-weight:bold;color:#58a6ff}}
 .stat .lbl{{font-size:12px;color:#8b949e;margin-top:4px}}
-.progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;margin-bottom:24px;max-width:600px;margin-left:auto;margin-right:auto}}
+.progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 24px;margin:0 auto 24px auto;max-width:600px}}
 .progress-label{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}}
 .progress-bar{{background:#21262d;border-radius:4px;height:8px}}
-.progress-fill{{background:#58a6ff;border-radius:4px;height:8px}}
+.progress-fill{{background:#58a6ff;border-radius:4px;height:8px;transition:width 0.3s}}
 .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}}
 .card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}}
 .card.up{{border-left:4px solid #3fb950}}
@@ -253,14 +240,14 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 <div class="progress-box">
   <div class="progress-label">
     <span>本轮扫描进度</span>
-    <span>100% | {total_symbols}/{total_symbols}</span>
+    <span>100% 已完成 | 共扫描 {total_symbols} 个合约</span>
   </div>
   <div class="progress-bar">
     <div class="progress-fill" style="width:100%"></div>
   </div>
 </div>
 <div class="grid">{cards}</div>
-<div class="footer">最后更新: {update_time} | 每15分钟自动扫描 | 数据来源: 币安合约</div>
+<div class="footer">最后更新: {update_time} | 每15分钟自动扫描 | 数据来源: 币安U本位永续合约</div>
 </body>
 </html>"""
 
@@ -273,7 +260,7 @@ def main():
         return
 
     total = len(symbols)
-    print(f"开始扫描 {total} 个合约...")
+    print(f"开始扫描 {total} 个合约...\n")
 
     try:
         with open("alerts.json", "r", encoding="utf-8") as f:
@@ -284,21 +271,22 @@ def main():
     found = 0
     for i, symbol in enumerate(symbols):
         pct = int((i + 1) / total * 100)
-        bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
-        print(f"[{bar}] {pct}% [{i+1}/{total}] {symbol}", end="\r")
+        filled = pct // 5
+        bar = "#" * filled + "-" * (20 - filled)
+        print(f"\r[{bar}] {pct:3d}% [{i+1}/{total}] {symbol:<20}", end="", flush=True)
 
         try:
             result = check_symbol(symbol)
             if result:
-                print(f"\n⚡ [{i+1}/{total}] {symbol} 异动！{result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
+                print(f"\n⚡ 异动！{symbol} {result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
                 history.append(result)
                 found += 1
         except Exception as e:
-            print(f"\n❌ [{i+1}/{total}] {symbol} 出错: {e}")
+            print(f"\n❌ {symbol} 出错: {e}")
 
         time.sleep(0.05)
 
-    print(f"\n完成！本轮发现 {found} 个异动，累计 {len(history)} 条记录")
+    print(f"\n\n完成！本轮发现 {found} 个异动，累计 {len(history)} 条记录")
 
     with open("alerts.json", "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
