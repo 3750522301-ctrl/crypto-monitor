@@ -8,14 +8,7 @@ import time
 STABLE_DAYS          = 5
 STABLE_VOL_THRESHOLD = 0.10
 BREAKOUT_THRESHOLD   = 0.10
-VOL_MULTIPLIER       = 3.0
-
-SYMBOLS = [
-    "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
-    "DOGEUSDT","ADAUSDT","AVAXUSDT","MATICUSDT","DOTUSDT",
-    "LINKUSDT","UNIUSDT","ATOMUSDT","LTCUSDT","NEARUSDT",
-    "APTUSDT","ARBUSDT","OPUSDT","INJUSDT","SUIUSDT",
-]
+VOL_MULTIPLIER       = 2.0   # 从3降到2
 
 BINANCE_URLS = [
     "https://api.binance.com/api/v3",
@@ -23,7 +16,7 @@ BINANCE_URLS = [
     "https://api2.binance.com/api/v3",
 ]
 
-def binance_get(endpoint, params):
+def binance_get(endpoint, params={}):
     for base in BINANCE_URLS:
         try:
             r = requests.get(f"{base}/{endpoint}", params=params, timeout=10)
@@ -33,6 +26,20 @@ def binance_get(endpoint, params):
         except Exception:
             continue
     return None
+
+def get_all_usdt_symbols():
+    """自动获取币安所有USDT交易对"""
+    data = binance_get("exchangeInfo")
+    if not data:
+        return []
+    symbols = [
+        s["symbol"] for s in data["symbols"]
+        if s["symbol"].endswith("USDT")
+        and s["status"] == "TRADING"
+        and s["quoteAsset"] == "USDT"
+    ]
+    print(f"  共获取到 {len(symbols)} 个USDT交易对")
+    return symbols
 
 def get_daily_klines(symbol, days=30):
     data = binance_get("klines", {
@@ -211,7 +218,7 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 </head>
 <body>
 <h1>⚡ 币安异动监控</h1>
-<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动率暴增 3倍以上</p>
+<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动放大2倍以上</p>
 <div class="stats">
   <div class="stat"><div class="num">{total}</div><div class="lbl">累计异动</div></div>
   <div class="stat"><div class="num" style="color:#3fb950">{up_count}</div><div class="lbl">暴涨信号</div></div>
@@ -223,7 +230,14 @@ h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
 </html>"""
 
 def main():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始扫描 {len(SYMBOLS)} 个币种...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始获取所有交易对...")
+
+    symbols = get_all_usdt_symbols()
+    if not symbols:
+        print("获取交易对失败")
+        return
+
+    print(f"开始扫描 {len(symbols)} 个币种...")
 
     try:
         with open("alerts.json", "r", encoding="utf-8") as f:
@@ -231,17 +245,19 @@ def main():
     except Exception:
         history = []
 
-    for symbol in SYMBOLS:
+    found = 0
+    for i, symbol in enumerate(symbols):
         try:
             result = check_symbol(symbol)
             if result:
-                print(f"  ⚡ {symbol} 异动！{result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
+                print(f"  ⚡ [{i+1}/{len(symbols)}] {symbol} 异动！{result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
                 history.append(result)
+                found += 1
             else:
-                print(f"  ✅ {symbol} 正常")
+                print(f"  ✅ [{i+1}/{len(symbols)}] {symbol} 正常")
         except Exception as e:
-            print(f"  ❌ {symbol} 出错: {e}")
-        time.sleep(0.2)
+            print(f"  ❌ [{i+1}/{len(symbols)}] {symbol} 出错: {e}")
+        time.sleep(0.15)
 
     with open("alerts.json", "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
@@ -249,7 +265,7 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(generate_html(history))
 
-    print(f"完成！共 {len(history)} 条记录")
+    print(f"完成！发现 {found} 个异动，累计 {len(history)} 条记录")
 
 if __name__ == "__main__":
     main()
