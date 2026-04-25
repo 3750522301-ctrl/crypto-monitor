@@ -32,12 +32,14 @@ def get_all_usdt_symbols():
     data = binance_get("exchangeInfo")
     if not data:
         return []
+
     symbols = [
         s["symbol"] for s in data["symbols"]
         if s["symbol"].endswith("USDT")
         and s["status"] == "TRADING"
         and s["quoteAsset"] == "USDT"
     ]
+
     print(f"  共获取到 {len(symbols)} 个USDT交易对")
     return symbols
 
