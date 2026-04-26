@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import json
 import time
+import os
 
 STABLE_DAYS = 5
 STABLE_VOL_THRESHOLD = 0.10
@@ -24,22 +25,17 @@ def fapi_get(endpoint, params=None):
             r = requests.get(f"{base}/{endpoint}", params=params, timeout=15)
             data = r.json()
             if isinstance(data, dict) and "code" in data:
-                print(f"{base} 返回错误: {data}")
                 continue
             if isinstance(data, (dict, list)):
                 return data
-        except Exception as e:
-            print(f"{base} 请求失败: {e}")
+        except Exception:
             continue
     return None
 
 def get_all_futures_symbols():
     data = fapi_get("exchangeInfo")
-    if not data:
-        print("获取合约列表失败：所有接口无返回")
-        return []
-    if "symbols" not in data:
-        print(f"获取合约列表失败：返回内容异常 -> {str(data)[:200]}")
+    if not data or "symbols" not in data:
+        print("获取合约列表失败")
         return []
     symbols = []
     for s in data["symbols"]:
@@ -157,157 +153,83 @@ def check_symbol(symbol):
         "detected_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-def generate_html(history, total_symbols, found_this_round):
-    total = len(history)
-    up_count = sum(1 for d in history if any("暴涨" in s["方向"] for s in d["signals"]))
-    down_count = sum(1 for d in history if any("暴跌" in s["方向"] for s in d["signals"]))
-    update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    status_text = f"100% 已完成 | 共扫描 {total_symbols} 个合约" if total_symbols > 0 else "获取合约列表失败，请检查网络"
-    progress_width = "100%" if total_symbols > 0 else "0%"
-    progress_color = "#58a6ff" if total_symbols > 0 else "#f85149"
-
-    cards = ""
-    for item in reversed(history):
-        is_up = any("暴涨" in s["方向"] for s in item["signals"])
-        card_cls = "up" if is_up else "down"
-        sigs = ""
-        for s in item["signals"]:
-            dc = "up-text" if "暴涨" in s["方向"] else "down-text"
-            chg = f"+{s['涨跌幅']}%" if s["涨跌幅"] > 0 else f"{s['涨跌幅']}%"
-            sigs += f"""
-            <div class="signal">
-              <div class="sig-header">
-                <span class="period">{s["周期"]}</span>
-                <span class="{dc}">{s["方向"]}</span>
-              </div>
-              <div class="sig-row"><span>涨跌幅</span><span class="{dc}">{chg}</span></div>
-              <div class="sig-row"><span>K线波动</span><span>{s["K线波动"]}%</span></div>
-              <div class="sig-row"><span>波动放大</span><span class="mul">{s["波动倍数"]}x</span></div>
-              <div class="sig-row"><span>时间</span><span>{str(s["K线时间"])[:16]}</span></div>
-            </div>"""
-
-        cards += f"""
-        <div class="card {card_cls}">
-          <div class="card-header">
-            <span class="symbol">{item["symbol"]}</span>
-            <span class="time">{item["detected_at"]}</span>
-          </div>
-          <div class="price">💰 {item["current_price"]}</div>
-          <div class="stable">📅 稳定{item["stable_days"]}天 | 均波动{item["avg_vol_pct"]}%</div>
-          {sigs}
-        </div>"""
-
-    if not cards:
-        cards = '<div class="no-data">暂无异动数据</div>'
-
-    return f"""<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<meta http-equiv="refresh" content="60">
-<title>币安合约异动监控</title>
-<style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',sans-serif;padding:20px}}
-h1{{text-align:center;color:#58a6ff;margin-bottom:8px;font-size:24px}}
-.sub{{text-align:center;color:#8b949e;font-size:13px;margin-bottom:20px}}
-.stats{{display:flex;gap:16px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}}
-.stat{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 24px;text-align:center}}
-.stat .num{{font-size:28px;font-weight:bold;color:#58a6ff}}
-.stat .lbl{{font-size:12px;color:#8b949e;margin-top:4px}}
-.progress-box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 24px;margin:0 auto 24px auto;max-width:600px}}
-.progress-label{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-bottom:8px}}
-.progress-bar{{background:#21262d;border-radius:4px;height:8px}}
-.progress-fill{{border-radius:4px;height:8px}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}}
-.card{{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}}
-.card.up{{border-left:4px solid #3fb950}}
-.card.down{{border-left:4px solid #f85149}}
-.card-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}}
-.symbol{{font-size:18px;font-weight:bold;color:#58a6ff}}
-.time{{font-size:11px;color:#8b949e}}
-.price{{font-size:13px;color:#8b949e;margin-bottom:8px}}
-.stable{{font-size:12px;color:#8b949e;margin-bottom:10px;padding:6px 10px;background:#0d1117;border-radius:6px}}
-.signal{{background:#0d1117;border-radius:8px;padding:10px;margin-bottom:8px}}
-.sig-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}}
-.period{{font-size:12px;font-weight:bold;background:#21262d;padding:2px 8px;border-radius:10px}}
-.up-text{{color:#3fb950;font-weight:bold}}
-.down-text{{color:#f85149;font-weight:bold}}
-.sig-row{{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin-top:3px}}
-.sig-row span:last-child{{color:#e6edf3}}
-.mul{{color:#e3b341;font-weight:bold}}
-.no-data{{text-align:center;color:#8b949e;padding:60px;grid-column:1/-1}}
-.footer{{text-align:center;color:#8b949e;font-size:12px;margin-top:24px}}
-</style>
-</head>
-<body>
-<h1>⚡ 币安合约异动监控</h1>
-<p class="sub">稳定≥5天(日波动&lt;10%) → 涨跌&gt;10% 且波动放大2倍以上 | U本位永续合约</p>
-<div class="stats">
-  <div class="stat"><div class="num">{total_symbols}</div><div class="lbl">监控合约数</div></div>
-  <div class="stat"><div class="num">{found_this_round}</div><div class="lbl">本轮新增</div></div>
-  <div class="stat"><div class="num">{total}</div><div class="lbl">累计异动</div></div>
-  <div class="stat"><div class="num" style="color:#3fb950">{up_count}</div><div class="lbl">暴涨信号</div></div>
-  <div class="stat"><div class="num" style="color:#f85149">{down_count}</div><div class="lbl">暴跌信号</div></div>
-</div>
-<div class="progress-box">
-  <div class="progress-label">
-    <span>本轮扫描进度</span>
-    <span>{status_text}</span>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" style="width:{progress_width};background:{progress_color}"></div>
-  </div>
-</div>
-<div class="grid">{cards}</div>
-<div class="footer">最后更新: {update_time} | 每15分钟自动扫描 | 数据来源: 币安U本位永续合约</div>
-</body>
-</html>"""
+def print_result(result):
+    print("\n" + "="*50)
+    print(f"  ⚡ 异动币种: {result['symbol']}")
+    print(f"  💰 当前价格: {result['current_price']}")
+    print(f"  📅 稳定天数: {result['stable_days']}天")
+    print(f"  📊 稳定期均波动: {result['avg_vol_pct']}%")
+    print(f"  🕐 检测时间: {result['detected_at']}")
+    for s in result["signals"]:
+        print(f"\n  [{s['周期']}] {s['方向']}")
+        print(f"    涨跌幅:   {s['涨跌幅']}%")
+        print(f"    K线波动:  {s['K线波动']}%")
+        print(f"    波动放大: {s['波动倍数']}x")
+        print(f"    K线时间:  {s['K线时间'][:16]}")
+    print("="*50)
 
 def main():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 获取合约交易对...")
+    os.system("cls" if os.name == "nt" else "clear")
+    print("=" * 50)
+    print("   ⚡ 币安合约异动监控 - 本地版")
+    print("=" * 50)
+    print(f"  稳定期:   连续 {STABLE_DAYS} 天日波动 < {int(STABLE_VOL_THRESHOLD*100)}%")
+    print(f"  触发条件: 涨跌 > {int(BREAKOUT_THRESHOLD*100)}% 且波动放大 {VOL_MULTIPLIER}x")
+    print(f"  合约类型: U本位永续合约")
+    print("=" * 50)
 
-    symbols = get_all_futures_symbols()
+    while True:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n🔍 开始新一轮扫描 [{now}]")
 
-    try:
-        with open("alerts.json", "r", encoding="utf-8") as f:
-            history = json.load(f)
-    except Exception:
-        history = []
+        symbols = get_all_futures_symbols()
+        if not symbols:
+            print("❌ 获取合约列表失败，60秒后重试...")
+            time.sleep(60)
+            continue
 
-    if not symbols:
-        print("获取合约交易对失败，生成失败提示页面")
-        with open("index.html", "w", encoding="utf-8") as f:
-            f.write(generate_html(history, 0, 0))
-        return
+        total = len(symbols)
+        found_this_round = []
 
-    total = len(symbols)
-    print(f"开始扫描 {total} 个合约...\n")
+        for i, symbol in enumerate(symbols):
+            pct = int((i + 1) / total * 100)
+            filled = pct // 5
+            bar = "#" * filled + "-" * (20 - filled)
+            print(f"\r  [{bar}] {pct:3d}% [{i+1}/{total}] {symbol:<20}", end="", flush=True)
 
-    found = 0
-    for i, symbol in enumerate(symbols):
-        pct = int((i + 1) / total * 100)
-        filled = pct // 5
-        bar = "#" * filled + "-" * (20 - filled)
-        print(f"\r[{bar}] {pct:3d}% [{i+1}/{total}] {symbol:<20}", end="", flush=True)
-        try:
-            result = check_symbol(symbol)
-            if result:
-                print(f"\n⚡ 异动！{symbol} {result['signals'][0]['方向']} {result['signals'][0]['涨跌幅']}%")
-                history.append(result)
-                found += 1
-        except Exception as e:
-            print(f"\n❌ {symbol} 出错: {e}")
-        time.sleep(0.05)
+            try:
+                result = check_symbol(symbol)
+                if result:
+                    found_this_round.append(result)
+                    print_result(result)
+            except Exception as e:
+                pass
 
-    print(f"\n\n完成！本轮发现 {found} 个异动，累计 {len(history)} 条记录")
+            time.sleep(0.05)
 
-    with open("alerts.json", "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-    with open("index.html", "w", encoding="utf-8") as f:
-        f.write(generate_html(history, total, found))
+        print(f"\n\n✅ 本轮完成！发现 {len(found_this_round)} 个异动")
+
+        if found_this_round:
+            try:
+                with open("alerts.json", "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                history = []
+
+            history.extend(found_this_round)
+
+            with open("alerts.json", "w", encoding="utf-8") as f:
+                json.dump(history, f, ensure_ascii=False, indent=2)
+
+            print(f"📁 结果已保存到 alerts.json（累计 {len(history)} 条）")
+
+        print("\n⏳ 15分钟后开始下一轮扫描...")
+        print("   按 Ctrl+C 退出")
+
+        time.sleep(900)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\n已退出监控")
